@@ -27,6 +27,10 @@ tagline: A text-focused Jekyll theme   # it will display as the sub-title
 
 description: >-                        # used by seo meta and the atom feed
   후니 블로그입니다.
+<<<<<<< HEAD
+=======
+
+>>>>>>> 4e818640035135ec3a72421a70e22b584f01357f
 # fill in the protocol & hostname for your site, e.g., 'https://username.github.io'
 url: 'https://hooni-techs.github.io/'
 
