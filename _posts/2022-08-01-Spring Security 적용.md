@@ -337,6 +337,81 @@ public class LoginServiceImpl extends EgovAbstractServiceImpl implements UserDet
 ```
 
 # 5. 시큐리티 로그인 핸들러 추가
+### - knlframework.LoginAuthenticationProvider.java
+```java
+package knlframework;
+
+import javax.annotation.Resource;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AccountExpiredException;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.CredentialsExpiredException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
+import knlframework.com.def.service.impl.LoginServiceImpl;
+import knlframework.com.site.service.UserVO;
+
+/**
+ * 인증 provider custom
+ * 
+ * @author hoon
+ *
+ */
+@Component
+public class LoginAuthenticationProvider implements AuthenticationProvider {
+
+	/** Log Info */
+	protected Log log = LogFactory.getLog(this.getClass());
+
+	@Autowired
+	private PasswordEncoder passwordEncoder;
+
+	@Resource(name = "loginService")
+	private LoginServiceImpl loginService;
+
+	@Override
+	public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+
+		log.info("### authenticate ### ");
+
+		String username = (String) authentication.getPrincipal();
+		String password = (String) authentication.getCredentials();
+
+		UserVO loginVO = (UserVO) loginService.loadUserByUsername(username);
+
+		// pw같은지 검증.
+		if (!passwordEncoder.matches(password, loginVO.getPassword())) {
+			throw new BadCredentialsException(username);
+		} else if (!loginVO.isEnabled()) {
+			throw new DisabledException(username);
+		} else if (!loginVO.isAccountNonExpired()) {
+			throw new AccountExpiredException(username);
+		} else if (!loginVO.isAccountNonLocked()) {
+			throw new LockedException(username);
+		} else if (!loginVO.isCredentialsNonExpired()) {
+			throw new CredentialsExpiredException(username);
+		}
+
+		return new UsernamePasswordAuthenticationToken(loginVO, loginVO, loginVO.getAuthorities());
+	}
+
+	@Override
+	public boolean supports(Class<?> authentication) {
+		return (UsernamePasswordAuthenticationToken.class.isAssignableFrom(authentication));
+	}
+}
+```
+
 ### - knlframework.def.service.impl.LoginAuthenticationFailureHandler.java
 ```java
 package knlframework.com.def.service.impl;
@@ -729,4 +804,107 @@ public class LoginAuthenticationSuccessHandler implements AuthenticationSuccessH
 
 	
 </mapper>            
+```
+
+# 7. 공통 메세지 설정
+### - knlframework.WebContextMessage.java
+```java
+package knlframework;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.support.ReloadableResourceBundleMessageSource;
+import org.springframework.web.servlet.i18n.SessionLocaleResolver;
+
+@Configuration
+public class WebContextMessage {
+	/**
+	 * 메세지 소스를 생성한다.
+	 */
+
+	@Bean
+	public ReloadableResourceBundleMessageSource messageSource() {
+
+		ReloadableResourceBundleMessageSource source = new ReloadableResourceBundleMessageSource();
+
+		source.setBasename("classpath:/egovframework/messages/message");
+
+		// 기본 인코딩을 지정한다.
+		source.setDefaultEncoding("UTF-8");
+
+		// 프로퍼티 파일의 변경을 감지할 시간 간격을 지정한다.
+		source.setCacheSeconds(60);
+
+		// 없는 메세지일 경우 예외를 발생시키는 대신 코드를 기본 메세지로 한다.
+		source.setUseCodeAsDefaultMessage(true);
+		return source;
+
+	}
+
+	/**
+	 * 변경된 언어 정보를 기억할 로케일 리졸퍼를 생성한다. 여기서는 세션에 저장하는 방식을 사용한다.
+	 */
+
+	@Bean
+	public SessionLocaleResolver localeResolver() {
+		return new SessionLocaleResolver();
+	}
+
+}
+```
+
+# 8. 공통 메세지 정의(인증 관련만 해당)
+### - egovframework/messages/message.properties
+```properties
+AbstractAccessDecisionManager.accessDenied = 접근이 거부되었습니다.
+AbstractLdapAuthenticationProvider.emptyPassword = 비밀번호가 맞지 않습니다.
+AbstractSecurityInterceptor.authenticationNotFound = SecurityContext에서 Authentication 객체를 찾을 수 없습니다.
+AbstractUserDetailsAuthenticationProvider.badCredentials = 아이디 혹은 비밀번호가 맞지 않습니다.
+AbstractUserDetailsAuthenticationProvider.credentialsExpired = 자격 증명 유효 기간이 만료되었습니다.
+AbstractUserDetailsAuthenticationProvider.disabled = 유효하지 않은 사용자입니다.
+AbstractUserDetailsAuthenticationProvider.expired = 사용자 계정의 유효 기간이 만료 되었습니다.
+AbstractUserDetailsAuthenticationProvider.locked = 사용자 계정이 잠겨 있습니다.
+AbstractUserDetailsAuthenticationProvider.onlySupports = UsernamePasswordAuthenticationToken만 지원합니다.
+AccountStatusUserDetailsChecker.credentialsExpired = 자격 증명 유효 기간이 만료되었습니다.
+AccountStatusUserDetailsChecker.disabled = 계정이 비활성화 상태입니다. 관리자에게 문의하세요.
+AccountStatusUserDetailsChecker.expired = 사용자 계정의 유효 기간이 만료 되었습니다.
+AccountStatusUserDetailsChecker.locked = 사용자 계정이 잠겨 있습니다.
+AclEntryAfterInvocationProvider.noPermission = domain object {1}에 대한 권한이 Authentication {0}에 없습니다.
+AnonymousAuthenticationProvider.incorrectKey = 제공된 AnonymousAuthenticationToken에는 필요로하는 key가 없습니다.
+BindAuthenticator.badCredentials = 자격 증명에 실패하였습니다.
+BindAuthenticator.emptyPassword = 비밀번호 항목이 비어 있습니다.
+CasAuthenticationProvider.incorrectKey = 제공된 CasAuthenticationToken에는 필요로 하는 key가 없습니다.
+CasAuthenticationProvider.noServiceTicket = 검증을 위한 CAS 서비스 티켓을 제공할 수 없습니다.
+ConcurrentSessionControlAuthenticationStrategy.exceededAllowed = 최대 세션 허용 수 {0}개를 초과하였습니다.
+DigestAuthenticationFilter.incorrectRealm = 응답 realm 이름 {0}과 시스템 realm 이름 {1}이 일치하지 않습니다.
+DigestAuthenticationFilter.incorrectResponse = 응답이 정확하지 않습니다.
+DigestAuthenticationFilter.missingAuth = 'auth' QOP(quality of protection)를 위한 digest 값은 필수 항목입니다. 현재 header 값은 {0}입니다.
+DigestAuthenticationFilter.missingMandatory = digest 값은 필수 항목입니다. 현재 header 값은 {0}입니다.
+DigestAuthenticationFilter.nonceCompromised = Nonce 토큰이 손상되었습니다. 현재 nonce 값은 {0}입니다.
+DigestAuthenticationFilter.nonceEncoding = Nonce 값이 Base64로 인코딩 되어있지 않습니다. 현재 nonce 값은 {0}입니다.
+DigestAuthenticationFilter.nonceExpired = Nonce의 유효 기간이 만료되었거나 시간이 초과되었습니다.
+DigestAuthenticationFilter.nonceNotNumeric = Nonce 토큰의 첫 글자는 숫자로 시작해야 합니다. 현재 nonce 값은 {0}입니다.
+DigestAuthenticationFilter.nonceNotTwoTokens = Nonce는 두 개의 토큰을 만들어야 합니다. 현재 nonce 값은 {0}입니다.
+DigestAuthenticationFilter.usernameNotFound = [ {0} ]은(는) 존재하지 않는  ID입니다.
+JdbcDaoImpl.noAuthority = {0} 사용자는 권한이 없습니다.
+JdbcDaoImpl.notFound = {0} 사용자를 찾을 수 없습니다.
+LdapAuthenticationProvider.badCredentials = 자격 증명에 실패하였습니다.
+LdapAuthenticationProvider.credentialsExpired = 자격 증명 유효 기간이 만료되었습니다.
+LdapAuthenticationProvider.disabled = 유효하지 않은 사용자입니다.
+LdapAuthenticationProvider.expired = 사용자 계정의 유효 기간이 만료 되었습니다.
+LdapAuthenticationProvider.locked = 사용자 계정이 잠겨 있습니다.
+LdapAuthenticationProvider.emptyUsername = ID에 공백은 허용되지 않습니다.
+LdapAuthenticationProvider.onlySupports = UsernamePasswordAuthenticationToken만 지원합니다.
+PasswordComparisonAuthenticator.badCredentials = 자격 증명에 실패하였습니다.
+PersistentTokenBasedRememberMeServices.cookieStolen = 로그인 상태 유지를 위한 토큰이 일치하지 않습니다. 이전에 사용한 토큰이 타인으로부터 탈취 당했을 수 있습니다.
+ProviderManager.providerNotFound = {0}을 위한 AuthenticationProvider를 찾을 수 없습니다.
+RememberMeAuthenticationProvider.incorrectKey = 제공된 RememberMeAuthenticationToken에는 필요로 하는 key가 없습니다.
+RunAsImplAuthenticationProvider.incorrectKey = 제공된 RunAsUserToken에는 필요로 하는 key가 없습니다.
+SubjectDnX509PrincipalExtractor.noMatching = subjectDN\: {0} 내에 매칭되는 패턴이 없습니다.
+SwitchUserFilter.noCurrentUser = 요청한 사용자를 찾을 수 없습니다.
+SwitchUserFilter.noOriginalAuthentication = Authentication 객체의 원본을 찾을 수 없습니다.
+
+#내가 신규로 추가한 것
+AbstractUserDetailsAuthenticationProvider.InternalAuthentication = 내부적으로 발생한 시스템 문제로 인해 인증 요청을 처리 할 수없습니다.
+
 ```
